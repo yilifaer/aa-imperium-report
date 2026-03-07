@@ -43,7 +43,7 @@ pip install aa-imperium-report
 Or install directly from GitHub:
 
 ```bash
-pip install git+https://github.com/YOUR_USERNAME/aa-imperium-report.git
+pip install git+https://github.com/yilifaer/aa-imperium-report.git
 ```
 
 ### 2. Add to INSTALLED_APPS
