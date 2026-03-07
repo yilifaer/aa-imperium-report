@@ -1,0 +1,118 @@
+{% extends "allianceauth/base-bs5.html" %}
+{% load i18n %}
+
+{% block page_title %}Imperium Report{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+
+  {# ── Page header ── #}
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-0">
+        <i class="fas fa-chart-bar me-2 text-primary"></i>Imperium Report
+      </h2>
+      <small class="text-muted">Monthly Alliance Reports</small>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      {% if can_upload %}
+        <a href="{% url 'aa_imperium_report:upload_imp_attendance' %}" class="btn btn-warning btn-sm">
+          <i class="fas fa-upload me-1"></i>Upload IMP Attendance
+        </a>
+        <a href="{% url 'aa_imperium_report:upload_imp_esi' %}" class="btn btn-info btn-sm">
+          <i class="fas fa-shield-alt me-1"></i>Upload IMP ESI Report
+        </a>
+      {% endif %}
+
+      {% if has_alliance %}
+        {# v0.2: Manual snapshot trigger button #}
+        <form method="post" action="{% url 'aa_imperium_report:trigger_snapshot' %}" class="d-inline">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-secondary btn-sm"
+                  onclick="return confirm('Trigger snapshot for today?')">
+            <i class="fas fa-camera me-1"></i>Trigger Snapshot
+          </button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+
+  {# ── Django messages ── #}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+      {{ message }}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+
+  {# ── Report list ── #}
+  {% if reports %}
+    <div class="card">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>Monthly Reports</h5>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-striped mb-0 align-middle">
+          <thead class="table-dark">
+            <tr>
+              <th>Month</th>
+              <th>Status</th>
+              <th>IMP Attendance</th>
+              <th>IMP ESI</th>
+              <th>Last Updated</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for report in reports %}
+            <tr>
+              <td><strong>{{ report.label }}</strong></td>
+              <td>
+                {% if report.is_final %}
+                  <span class="badge bg-success">✅ Final</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark">⏳ Draft</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if report.imp_attendance_uploaded %}
+                  <span class="text-success"><i class="fas fa-check-circle"></i></span>
+                {% else %}
+                  <span class="text-muted"><i class="fas fa-times-circle"></i></span>
+                {% endif %}
+              </td>
+              <td>
+                {% if report.imp_esi_uploaded %}
+                  <span class="text-success"><i class="fas fa-check-circle"></i></span>
+                {% else %}
+                  <span class="text-muted"><i class="fas fa-times-circle"></i></span>
+                {% endif %}
+              </td>
+              <td><small class="text-muted">{{ report.updated_at|date:"Y-m-d H:i" }}</small></td>
+              <td>
+                <a href="{% url 'aa_imperium_report:report_detail' report.year report.month %}"
+                   class="btn btn-primary btn-sm">
+                  <i class="fas fa-eye me-1"></i>View
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  {% else %}
+    <div class="alert alert-secondary">
+      <i class="fas fa-info-circle me-2"></i>
+      No reports yet. Data will appear after the first daily snapshot runs at DT.<br>
+      No reports yet. Snapshots are generated automatically after daily DT.<br>
+      {% if has_alliance %}
+        <small class="text-muted">Or use the "Trigger Snapshot" button above to generate test data.</small>
+      {% endif %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

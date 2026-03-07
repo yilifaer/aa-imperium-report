@@ -1,0 +1,53 @@
+{% extends "allianceauth/base-bs5.html" %}
+{% block page_title %}Upload IMP ESI Report — Imperium Report{% endblock %}
+
+{% block content %}
+<div class="container mt-4" style="max-width:640px">
+  <nav aria-label="breadcrumb" class="mb-3">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'aa_imperium_report:index' %}">Imperium Report</a></li>
+      <li class="breadcrumb-item active">Upload IMP ESI Report</li>
+    </ol>
+  </nav>
+
+  <div class="card">
+    <div class="card-header bg-info text-dark fw-bold">
+      <i class="fas fa-shield-alt me-2"></i>Upload IMP ESI Compliance Report
+    </div>
+    <div class="card-body">
+      <p class="text-muted small">
+        Paste the raw IMP ESI compliance report text below. Each line should follow the format:<br>
+        <code>[PASS] Corp Name (0 unregistered)</code><br>
+        <code>[FAIL] Corp Name (3 unregistered: Pilot A, Pilot B, Pilot C)</code><br>
+        <code>[NO TOKEN] Corp Name</code>
+      </p>
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="row g-3 mb-3">
+          <div class="col-6">
+            <label class="form-label">Year</label>
+            <input type="number" name="year" class="form-control" value="{{ today.year }}" min="2020" max="2099" required>
+          </div>
+          <div class="col-6">
+            <label class="form-label">Month</label>
+            <input type="number" name="month" class="form-control" value="{{ today.month }}" min="1" max="12" required>
+          </div>
+        </div>
+        <div class="mb-3">
+          <label class="form-label">ESI Report Text</label>
+          <textarea name="raw_text" class="form-control font-monospace" rows="18"
+            placeholder="[PASS] Example Corp (0 unregistered)&#10;[FAIL] Other Corp (2 unregistered: Pilot A, Pilot B)"
+            required></textarea>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-info text-dark">
+            <i class="fas fa-shield-alt me-1"></i>Parse &amp; Save
+          </button>
+          <a href="{% url 'aa_imperium_report:index' %}" class="btn btn-outline-secondary">Cancel</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

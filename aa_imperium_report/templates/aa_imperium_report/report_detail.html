@@ -1,0 +1,471 @@
+{% extends "allianceauth/base-bs5.html" %}
+
+{% block page_title %}{{ report.label }} — Imperium Report{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+
+  {# Breadcrumb #}
+  <nav aria-label="breadcrumb" class="mb-2">
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="{% url 'aa_imperium_report:index' %}">Imperium Report</a></li>
+      <li class="breadcrumb-item active">{{ report.label }}</li>
+    </ol>
+  </nav>
+
+  {# Header row #}
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="mb-0">
+        {{ report.label }}
+        {% if report.is_final %}
+          <span class="badge bg-success ms-2">&#10003; Final</span>
+        {% else %}
+          <span class="badge bg-warning text-dark ms-2">Draft</span>
+        {% endif %}
+      </h2>
+      <small class="text-muted">
+        Updated: {{ report.updated_at|date:"Y-m-d H:i" }} UTC
+        {% if report.is_final %} &middot; Finalized: {{ report.finalized_at|date:"Y-m-d H:i" }} UTC{% endif %}
+      </small>
+    </div>
+
+    <div class="d-flex gap-2 flex-wrap">
+      {% if can_upload %}
+        <a href="{% url 'aa_imperium_report:upload_imp_attendance' %}" class="btn btn-warning btn-sm">
+          <i class="fas fa-upload me-1"></i>Upload IMP Attendance
+        </a>
+        <a href="{% url 'aa_imperium_report:upload_imp_esi' %}" class="btn btn-info btn-sm">
+          <i class="fas fa-shield-alt me-1"></i>Upload IMP ESI
+        </a>
+      {% endif %}
+      {% if can_finalize %}
+        {% if not report.is_final %}
+          <form method="post" action="{% url 'aa_imperium_report:rebuild_report' report.year report.month %}" class="d-inline">
+            {% csrf_token %}<button class="btn btn-secondary btn-sm"><i class="fas fa-sync me-1"></i>Rebuild</button>
+          </form>
+          <form method="post" action="{% url 'aa_imperium_report:finalize_report' report.year report.month %}" class="d-inline">
+            {% csrf_token %}<input type="hidden" name="force" value="1">
+            <button class="btn btn-success btn-sm" onclick="return confirm('Finalize this report?')">
+              <i class="fas fa-lock me-1"></i>Finalize
+            </button>
+          </form>
+        {% endif %}
+      {% endif %}
+    </div>
+  </div>
+
+  {# Flash messages #}
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show">
+      {{ message }}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+  {% endfor %}
+
+  {# ════════════════════════════════════════════
+     ALLIANCE VIEW — sees everything
+     ════════════════════════════════════════════ #}
+  {% if is_alliance %}
+
+    {# Status cards #}
+    <div class="row g-2 mb-3">
+      <div class="col-6 col-md-3">
+        <div class="card text-center h-100"><div class="card-body py-3">
+          <div class="fs-4">{% if report.imp_attendance_uploaded %}&#10003;{% else %}&#10007;{% endif %}</div>
+          <div class="small text-muted">IMP Attendance CSV</div>
+        </div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center h-100"><div class="card-body py-3">
+          <div class="fs-4">{% if report.imp_esi_uploaded %}&#10003;{% else %}&#10007;{% endif %}</div>
+          <div class="small text-muted">IMP ESI Report</div>
+        </div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center h-100"><div class="card-body py-3">
+          <div class="fs-4 fw-bold text-primary">{{ corp_stats|length }}</div>
+          <div class="small text-muted">Corps</div>
+        </div></div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="card text-center h-100"><div class="card-body py-3">
+          <div class="fs-4 fw-bold text-info">{{ member_stats|length }}</div>
+          <div class="small text-muted">Members</div>
+        </div></div>
+      </div>
+    </div>
+
+    {# Full IMP ESI compliance summary #}
+    {% if imp_esi %}
+    <div class="card mb-3 border-0" style="background:#1a1a2e;">
+      <div class="card-header py-2" style="background:#16213e;">
+        <i class="fas fa-shield-alt me-2"></i><strong>IMP ESI Compliance Report</strong>
+        <small class="ms-2 opacity-75">Uploaded: {{ imp_esi.uploaded_at|date:"Y-m-d H:i" }} &middot; {{ imp_esi.uploaded_by }}</small>
+      </div>
+      <div class="card-body py-3">
+        <div class="row text-center g-3">
+          <div class="col"><div class="fs-3 fw-bold text-success">{{ imp_esi.pass_count }}</div><small class="text-muted">PASS</small></div>
+          <div class="col"><div class="fs-3 fw-bold text-danger">{{ imp_esi.fail_count }}</div><small class="text-muted">FAIL</small></div>
+          <div class="col"><div class="fs-3 fw-bold text-warning">{{ imp_esi.no_token_count }}</div><small class="text-muted">NO TOKEN</small></div>
+          <div class="col"><div class="fs-3 fw-bold text-secondary">{{ imp_esi.unregistered_total }}</div><small class="text-muted">Unregistered Pilots</small></div>
+          <div class="col"><div class="fs-3 fw-bold">{{ imp_esi.total_corps }}</div><small class="text-muted">Total Corps</small></div>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Full corp table #}
+    {% if corp_stats %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <strong><i class="fas fa-table me-2"></i>Monthly Corp Report</strong>
+        <small class="text-muted">ESI: <span class="text-danger fw-bold">&#9632;</span>&lt;75% &nbsp;<span class="text-warning fw-bold">&#9632;</span>75–90% &nbsp;<span class="text-success fw-bold">&#9632;</span>&ge;90%</small>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover table-bordered mb-0 align-middle" style="font-size:0.78rem; white-space:nowrap;">
+          <thead class="text-center">
+            <tr class="table-dark" style="font-size:0.72rem;">
+              <th rowspan="2" class="align-middle text-start" style="min-width:120px">Corp</th>
+              <th rowspan="2" class="align-middle" style="min-width:50px">Chars</th>
+              <th rowspan="2" class="align-middle" style="min-width:55px">Main<br>Chars</th>
+              <th rowspan="2" class="align-middle" style="min-width:50px">Total<br>Fleets</th>
+              <th rowspan="2" class="align-middle" style="min-width:55px">Per<br>Capita</th>
+              <th colspan="3" style="background:#1a3a5c; border-bottom:2px solid #4a90d9;">── IGC Fleets (AFAT) ──</th>
+              <th colspan="2" style="background:#0d3b3b; border-bottom:2px solid #20c997;">── IMP Fleets ──</th>
+              <th colspan="2" style="background:#2a2a40; border-bottom:2px solid #6f6fc8;">── IGC ESI ──</th>
+              <th colspan="2" style="background:#3a2a10; border-bottom:2px solid #ffc107;">── IMP ESI ──</th>
+              <th rowspan="2" class="align-middle" style="min-width:60px">PVE<br><span style="font-weight:normal;font-size:0.68rem;">B ISK</span></th>
+              <th rowspan="2" class="align-middle" style="min-width:60px">Mining<br><span style="font-weight:normal;font-size:0.68rem;">B ISK</span></th>
+              <th colspan="2" style="background:#3a1010; border-bottom:2px solid #dc3545;">── zKill ──</th>
+            </tr>
+            <tr>
+              <th style="background:#1a3a5c; min-width:40px">STR</th>
+              <th style="background:#1a3a5c; min-width:40px">PCT</th>
+              <th style="background:#1a3a5c; min-width:55px">Job</th>
+              <th style="background:#0d3b3b; min-width:40px">STR</th>
+              <th style="background:#0d3b3b; min-width:40px">PCT</th>
+              <th style="background:#2a2a40; min-width:60px">ESI %</th>
+              <th style="background:#2a2a40; min-width:55px">Failed</th>
+              <th style="background:#3a2a10; min-width:60px">ESI %</th>
+              <th style="background:#3a2a10; min-width:55px">Unreg.</th>
+              <th style="background:#3a1010; min-width:40px">Kills</th>
+              <th style="background:#3a1010; min-width:55px">Kill ISK<br><span style="font-weight:normal;font-size:0.68rem;">B</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cs in corp_stats %}
+            <tr>
+              <td class="text-start fw-bold">{{ cs.corp_name }}</td>
+              <td class="text-center">{{ cs.member_total }}</td>
+              <td class="text-center">{{ cs.member_authed }}</td>
+              <td class="text-center fw-bold">{{ cs.fleet_grand_total }}</td>
+              <td class="text-center">{{ cs.fleet_per_capita }}</td>
+              <td class="text-center" style="background:#1a3a5c22">{{ cs.igc_fleet_str }}</td>
+              <td class="text-center" style="background:#1a3a5c22">{{ cs.igc_fleet_pct }}</td>
+              <td class="text-center" style="background:#1a3a5c22">{{ cs.igc_fleet_alliance_job }}</td>
+              <td class="text-center" style="background:#0d3b3b22">{{ cs.imp_fleet_str }}</td>
+              <td class="text-center" style="background:#0d3b3b22">{{ cs.imp_fleet_pct }}</td>
+              {# IGC ESI #}
+              <td class="text-center" style="background:#2a2a4022">
+                {% with rate=cs.igc_esi_pct %}
+                {% if rate is not None %}
+                  {% if rate >= 90 %}<span class="text-success fw-bold">{{ rate }}%</span>
+                  {% elif rate >= 75 %}<span class="text-warning fw-bold">{{ rate }}%</span>
+                  {% else %}<span class="text-danger fw-bold">{{ rate }}%</span>{% endif %}
+                {% else %}<span class="text-muted">—</span>{% endif %}
+                {% endwith %}
+              </td>
+              <td class="text-center {% if cs.igc_esi_failed > 0 %}text-danger fw-bold{% endif %}" style="background:#2a2a4022">{{ cs.igc_esi_failed }}</td>
+              {# IMP ESI #}
+              <td class="text-center" style="background:#3a2a1022">
+                {% with rate=cs.imp_esi_pct %}
+                {% if rate is not None %}
+                  {% if rate >= 90 %}<span class="text-success fw-bold">{{ rate }}%</span>
+                  {% elif rate >= 75 %}<span class="text-warning fw-bold">{{ rate }}%</span>
+                  {% else %}<span class="text-danger fw-bold">{{ rate }}%</span>{% endif %}
+                {% else %}
+                  {% if cs.imp_esi_status == "PASS" %}<span class="text-success fw-bold">100%</span>
+                  {% else %}<span class="text-muted">—</span>{% endif %}
+                {% endif %}
+                {% endwith %}
+              </td>
+              <td class="text-center" style="background:#3a2a1022">
+                {% if cs.imp_esi_status == "UNKNOWN" %}<span class="text-muted">—</span>
+                {% elif cs.imp_esi_status == "PASS" %}<span class="badge bg-success">PASS</span>
+                {% elif cs.imp_esi_status == "NO_TOKEN" %}<span class="badge bg-warning text-dark">NO TOKEN</span>
+                {% else %}<span class="badge bg-danger">{{ cs.imp_esi_unregistered }}</span>{% endif %}
+              </td>
+              <td class="text-end">{% if cs.pve_bounty_isk > 0 %}{{ cs.pve_bounty_isk|floatformat:0 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="text-end">{% if cs.mining_isk > 0 %}{{ cs.mining_isk|floatformat:0 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+              <td class="text-center {% if cs.kills > 0 %}text-success fw-bold{% endif %}" style="background:#3a101022">{{ cs.kills }}</td>
+              <td class="text-end" style="background:#3a101022">{% if cs.kill_isk > 0 %}{{ cs.kill_isk|floatformat:0 }}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">No corp data. Upload IMP Attendance CSV and ESI Report, then click Rebuild.</div>
+    {% endif %}
+
+    {# Member breakdown (collapsible) #}
+    {% if member_stats %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <strong><i class="fas fa-users me-2"></i>Member Breakdown</strong>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#memberTable">Show/Hide</button>
+      </div>
+      <div class="collapse" id="memberTable">
+        <div class="table-responsive">
+          <table class="table table-hover table-striped mb-0 align-middle" style="font-size:0.78rem; white-space:nowrap;">
+            <thead class="table-dark text-center">
+              <tr>
+                <th class="text-start">Character</th>
+                <th>Corp</th>
+                <th>IGC STR</th><th>IGC PCT</th><th>Job</th>
+                <th>IMP STR</th><th>IMP PCT</th>
+                <th>Total</th>
+                <th>Mining ISK</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ms in member_stats %}
+              <tr>
+                <td class="fw-bold">{{ ms.character_name }}</td>
+                <td>{{ ms.corp_name }}</td>
+                <td class="text-center">{{ ms.igc_fleet_str }}</td>
+                <td class="text-center">{{ ms.igc_fleet_pct }}</td>
+                <td class="text-center">{{ ms.igc_fleet_alliance_job }}</td>
+                <td class="text-center">{{ ms.imp_fleet_str }}</td>
+                <td class="text-center">{{ ms.imp_fleet_pct }}</td>
+                <td class="text-center fw-bold">{{ ms.fleet_total }}</td>
+                <td class="text-end">{% if ms.mining_isk > 0 %}{{ ms.mining_isk|floatformat:0 }}{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+  {# ════════════════════════════════════════════
+     CORP CEO VIEW — own corp only
+     ════════════════════════════════════════════ #}
+  {% elif is_corp_mgr %}
+
+    <div class="mb-3">
+      <span class="badge bg-secondary px-3 py-2">
+        <i class="fas fa-building me-1"></i>{{ user_corp }} — Corp View
+      </span>
+    </div>
+
+    {# Own corp ESI status card #}
+    {% if imp_esi_own_corp %}
+    <div class="card mb-3 border-0" style="background:#1a1a2e;">
+      <div class="card-header py-2" style="background:#16213e;">
+        <i class="fas fa-shield-alt me-2"></i><strong>IMP ESI Status — {{ user_corp }}</strong>
+      </div>
+      <div class="card-body py-3">
+        <div class="row text-center g-3 align-items-center">
+          <div class="col-auto">
+            {% if imp_esi_own_corp.status == "PASS" %}
+              <span class="badge bg-success fs-5 px-4 py-3">&#10003; PASS</span>
+            {% elif imp_esi_own_corp.status == "NO_TOKEN" %}
+              <span class="badge bg-warning text-dark fs-5 px-4 py-3">NO TOKEN</span>
+            {% else %}
+              <span class="badge bg-danger fs-5 px-4 py-3">&#10007; FAIL</span>
+            {% endif %}
+          </div>
+          {% if imp_esi_own_corp.unregistered %}
+          <div class="col">
+            <div class="text-danger fw-bold fs-4">{{ imp_esi_own_corp.unregistered|length }}</div>
+            <small class="text-muted">Unregistered Pilots</small>
+            <div class="mt-2">
+              {% for pilot in imp_esi_own_corp.unregistered %}
+                <span class="badge bg-secondary me-1 mb-1">{{ pilot }}</span>
+              {% endfor %}
+            </div>
+          </div>
+          {% else %}
+          <div class="col text-muted">All pilots registered &#10003;</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {# Own corp stats card #}
+    {% if own_corp_stat %}
+    <div class="card mb-3">
+      <div class="card-header py-2">
+        <strong><i class="fas fa-chart-bar me-2"></i>{{ user_corp }} — Monthly Stats</strong>
+      </div>
+      <div class="card-body">
+        <div class="row g-3 text-center">
+          <div class="col-6 col-md-3">
+            <div class="fs-4 fw-bold">{{ own_corp_stat.fleet_grand_total }}</div>
+            <small class="text-muted">Total Fleets</small>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="fs-4 fw-bold text-info">{{ own_corp_stat.fleet_per_capita }}</div>
+            <small class="text-muted">Per Capita</small>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="fs-4 fw-bold text-primary">{{ own_corp_stat.member_total }}</div>
+            <small class="text-muted">Characters</small>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="fs-4 fw-bold text-secondary">{{ own_corp_stat.member_authed }}</div>
+            <small class="text-muted">Registered</small>
+          </div>
+        </div>
+        <hr>
+        <div class="row g-3 text-center">
+          <div class="col-6 col-md-2">
+            <div class="fw-bold" style="color:#4a90d9">{{ own_corp_stat.igc_fleet_str }}</div>
+            <small class="text-muted">IGC STR</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fw-bold" style="color:#4a90d9">{{ own_corp_stat.igc_fleet_pct }}</div>
+            <small class="text-muted">IGC PCT</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fw-bold" style="color:#4a90d9">{{ own_corp_stat.igc_fleet_alliance_job }}</div>
+            <small class="text-muted">Alliance Job</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fw-bold" style="color:#20c997">{{ own_corp_stat.imp_fleet_str }}</div>
+            <small class="text-muted">IMP STR</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fw-bold" style="color:#20c997">{{ own_corp_stat.imp_fleet_pct }}</div>
+            <small class="text-muted">IMP PCT</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fw-bold">{{ own_corp_stat.mining_isk|floatformat:0 }}</div>
+            <small class="text-muted">Mining ISK</small>
+          </div>
+        </div>
+        {% if own_corp_stat.igc_esi_pct is not None %}
+        <hr>
+        <div class="row g-3 text-center">
+          <div class="col-6 col-md-3">
+            {% with rate=own_corp_stat.igc_esi_pct %}
+              {% if rate >= 90 %}<div class="fs-5 fw-bold text-success">{{ rate }}%</div>
+              {% elif rate >= 75 %}<div class="fs-5 fw-bold text-warning">{{ rate }}%</div>
+              {% else %}<div class="fs-5 fw-bold text-danger">{{ rate }}%</div>{% endif %}
+            {% endwith %}
+            <small class="text-muted">IGC ESI Rate</small>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="fs-5 fw-bold {% if own_corp_stat.igc_esi_failed > 0 %}text-danger{% else %}text-success{% endif %}">
+              {{ own_corp_stat.igc_esi_failed }}
+            </div>
+            <small class="text-muted">IGC ESI Failed</small>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    {# Member breakdown for own corp #}
+    {% if member_stats %}
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center py-2">
+        <strong><i class="fas fa-users me-2"></i>Member Attendance</strong>
+        <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#memberTable">Show/Hide</button>
+      </div>
+      <div class="collapse show" id="memberTable">
+        <div class="table-responsive">
+          <table class="table table-hover table-striped mb-0 align-middle" style="font-size:0.82rem; white-space:nowrap;">
+            <thead class="table-dark text-center">
+              <tr>
+                <th class="text-start">Character</th>
+                <th>IGC STR</th><th>IGC PCT</th><th>Job</th>
+                <th>IMP STR</th><th>IMP PCT</th>
+                <th>Total</th>
+                <th>Mining ISK</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for ms in member_stats %}
+              <tr>
+                <td class="fw-bold">{{ ms.character_name }}</td>
+                <td class="text-center">{{ ms.igc_fleet_str }}</td>
+                <td class="text-center">{{ ms.igc_fleet_pct }}</td>
+                <td class="text-center">{{ ms.igc_fleet_alliance_job }}</td>
+                <td class="text-center">{{ ms.imp_fleet_str }}</td>
+                <td class="text-center">{{ ms.imp_fleet_pct }}</td>
+                <td class="text-center fw-bold">{{ ms.fleet_total }}</td>
+                <td class="text-end">{% if ms.mining_isk > 0 %}{{ ms.mining_isk|floatformat:0 }}{% else %}—{% endif %}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">No member data available for {{ user_corp }} this month.</div>
+    {% endif %}
+
+  {# ════════════════════════════════════════════
+     BASIC MEMBER VIEW — own data only
+     ════════════════════════════════════════════ #}
+  {% else %}
+
+    <div class="mb-3">
+      <span class="badge bg-secondary px-3 py-2">
+        <i class="fas fa-user me-1"></i>Member View
+      </span>
+    </div>
+
+    {% if member_stats %}
+    <div class="card mb-3">
+      <div class="card-header py-2">
+        <strong><i class="fas fa-user me-2"></i>My Attendance — {{ report.label }}</strong>
+      </div>
+      <div class="card-body">
+        {% for ms in member_stats %}
+        <div class="row g-3 text-center">
+          <div class="col-6 col-md-2">
+            <div class="fs-4 fw-bold text-primary" style="color:#4a90d9">{{ ms.igc_fleet_str }}</div>
+            <small class="text-muted">IGC STR</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fs-4 fw-bold" style="color:#4a90d9">{{ ms.igc_fleet_pct }}</div>
+            <small class="text-muted">IGC PCT</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fs-4 fw-bold" style="color:#4a90d9">{{ ms.igc_fleet_alliance_job }}</div>
+            <small class="text-muted">Alliance Job</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fs-4 fw-bold" style="color:#20c997">{{ ms.imp_fleet_str }}</div>
+            <small class="text-muted">IMP STR</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fs-4 fw-bold" style="color:#20c997">{{ ms.imp_fleet_pct }}</div>
+            <small class="text-muted">IMP PCT</small>
+          </div>
+          <div class="col-6 col-md-2">
+            <div class="fs-4 fw-bold text-light">{{ ms.fleet_total }}</div>
+            <small class="text-muted">Total Fleets</small>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <div class="alert alert-secondary">
+      No attendance data found for your character this month.
+    </div>
+    {% endif %}
+
+  {% endif %}{# end permission tiers #}
+
+</div>
+{% endblock %}
